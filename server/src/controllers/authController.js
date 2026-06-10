@@ -6,32 +6,36 @@ import { successResponse } from "../responseHandler/successResponse.js";
 
 const signup = async (req, res, next) => {
   try {
-    const {userName, email, password} = req.body
-    const profileImage = req.file
+    const { userName, email, password } = req.body;
+    const profileImage = req.file;
 
-    if(!userName || !email || !password) throw new Error("All fields are required!")
+    if (!userName || !email || !password) {
+      throw new Error("All fields are required!");
+    }
 
-    if(!profileImage) throw new Error("Image is required!")
+    if (!profileImage) {
+      throw new Error("Image is required!");
+    }
 
-    const cloudResponse = await cloudinary.uploader.upload(
-        profileImage.path,
-        {
-            folder: "users"
-        }
-    )
-
-    bcrypt.hash(password, 12, async function(err, hash) {
-        const user = await User.create({
-            userName,
-            email,
-            password: hash,
-            profileImage: cloudResponse.secure_url
+    const uploadResult = await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream({ folder: "users" }, (error, result) => {
+          if (error) return reject(error);
+          resolve(result);
         })
-
-        successResponse(res, 200, true, "User Signup Successfully!", user)
+        .end(profileImage.buffer);
     });
 
+    const hash = await bcrypt.hash(password, 12);
 
+    const user = await User.create({
+      userName,
+      email,
+      password: hash,
+      profileImage: uploadResult.secure_url,
+    });
+
+    successResponse(res, 200, true, "User Signup Successfully!", user);
   } catch (error) {
     next(error);
   }
